@@ -494,3 +494,137 @@ WHERE user_id = 1;
 | notification_preferences | Stores notification settings |
 
 The proposed PostgreSQL schema ensures reliable storage, efficient querying, and scalability through indexing, partitioning, replication, and caching as the application grows.
+# Stage 3
+
+## Query Analysis
+
+### Existing Query
+
+```sql
+SELECT *
+FROM notifications
+WHERE studentID = 1042
+AND isRead = false
+ORDER BY createdAt ASC;
+```
+
+---
+
+## Is the Query Accurate?
+
+Yes. The query is correct because it retrieves all unread notifications of the student with ID **1042** and sorts them in ascending order by creation time.
+
+---
+
+## Why is it Slow?
+
+The query becomes slow because the database contains approximately:
+
+- **50,000 students**
+- **5,000,000 notifications**
+
+Without a proper index, the database performs a full table scan to find matching records. It also needs to sort the results by `createdAt`, which increases execution time.
+
+Other reasons include:
+
+- Using `SELECT *` retrieves all columns, including unnecessary data.
+- Missing composite indexes.
+- Large dataset size.
+
+---
+
+## Optimized Query
+
+Instead of selecting all columns, fetch only the required columns.
+
+```sql
+SELECT notification_id,
+       title,
+       message,
+       notificationType,
+       createdAt
+FROM notifications
+WHERE studentID = 1042
+AND isRead = FALSE
+ORDER BY createdAt ASC;
+```
+
+---
+
+## Recommended Index
+
+```sql
+CREATE INDEX idx_student_read_created
+ON notifications(studentID, isRead, createdAt);
+```
+
+This composite index allows the database to efficiently:
+
+- Filter by `studentID`
+- Filter by `isRead`
+- Return rows already sorted by `createdAt`
+
+---
+
+## Computation Cost
+
+### Without Index
+
+```
+O(N)
+```
+
+where **N** is the total number of notifications.
+
+### With Composite Index
+
+```
+O(log N + K)
+```
+
+where:
+
+- **N** = total notifications
+- **K** = matching notifications returned
+
+---
+
+## Should We Add Indexes on Every Column?
+
+**No.**
+
+Adding indexes on every column is not a good practice because:
+
+- It increases storage usage.
+- INSERT, UPDATE and DELETE operations become slower.
+- Many indexes may never be used.
+- Database maintenance becomes more expensive.
+
+Indexes should only be created on columns that are frequently used in:
+
+- WHERE clauses
+- JOIN conditions
+- ORDER BY clauses
+- GROUP BY clauses
+
+---
+
+## Query to Find Students Who Received Placement Notifications in the Last 7 Days
+
+```sql
+SELECT DISTINCT studentID
+FROM notifications
+WHERE notificationType = 'Placement'
+AND createdAt >= CURRENT_DATE - INTERVAL '7 days';
+```
+
+---
+
+## Summary
+
+- The original query is logically correct.
+- It becomes slow because of full table scans and sorting.
+- A composite index on `(studentID, isRead, createdAt)` significantly improves performance.
+- Avoid `SELECT *` whenever possible.
+- Creating indexes on every column is not recommended.
+- The optimized approach improves query performance from **O(N)** to approximately **O(log N + K)**.
