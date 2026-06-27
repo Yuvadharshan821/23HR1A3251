@@ -1,7 +1,23 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+const loadData = async () => {
+  try {
+    setLoading(true);
+    setError("");
 
-// https://vite.dev/config/
-export default defineConfig({
-  plugins: [react()],
-})
+    const res = await fetchNotifications(token, filter, page);
+
+    console.log("FULL API RESPONSE:", res);
+
+    const list =
+      res.notifications ||
+      res.data ||
+      res ||
+      [];
+
+    setNotifications(Array.isArray(list) ? list : []);
+  } catch (err) {
+    setError(err.message);
+    setNotifications([]);
+  } finally {
+    setLoading(false);
+  }
+};

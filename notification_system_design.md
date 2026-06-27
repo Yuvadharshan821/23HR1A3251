@@ -926,3 +926,50 @@ worker_push():
 | No fault tolerance | Fault tolerant |
 | Difficult to scale | Highly scalable |
 | Email and DB tightly coupled | Independent processing using queues |
+# Stage 6 - Priority Inbox Implementation
+
+## Objective
+Implement a Priority Inbox that displays top N important notifications based on type and recency.
+
+---
+
+## Approach
+
+Notifications are fetched from external API and ranked using a scoring system.
+
+### Priority Weights
+- Placement → 3
+- Result → 2
+- Event → 1
+
+---
+
+## Scoring Formula
+
+Score = (Type Weight × 10^9) + Timestamp
+
+This ensures:
+- Type priority dominates
+- Recency used as tie-breaker
+
+---
+
+## Algorithm
+
+- Fetch notifications using REST API
+- Compute score for each notification
+- Maintain Top 10 using Min Heap
+- Replace lowest score when size exceeds 10
+
+---
+
+## Complexity
+
+- Insert: O(log 10)
+- Total: O(N log 10)
+
+---
+
+## Result
+
+Returns top 10 highest priority notifications sorted by importance and recency.

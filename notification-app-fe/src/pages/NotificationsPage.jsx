@@ -1,86 +1,112 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import axios from "axios";
 import {
-  Alert,
-  Badge,
   Box,
-  CircularProgress,
-  Divider,
-  Pagination,
-  Stack,
   Typography,
+  Stack,
+  Badge,
+  Divider,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 
-import { NotificationCard } from "../components/NotificationCard";
-import { NotificationFilter } from "../components/NotificationFilter";
-import { useNotifications } from "../hooks/useNotifications";
+export default function AllNotifications() {
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-export function NotificationsPage() {
-  const [filter, setFilter] = useState();
-  const [page, setPage] = useState("1");
+  const token = localStorage.getItem("token");
 
-  const { notifications, totalPages, loading, error } = useNotifications();
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
 
-  const unreadCount = 2;
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      setError("");
 
-  const handleFilterChange = (newFilter) => {
+      console.log("TOKEN:", token);
 
-  };
+      if (!token) {
+        setError("No token found. Please login again.");
+        return;
+      }
 
-  const handlePageChange = (_, newPage) => {
+      const res = await axios.get(
+        "http://4.224.186.213/evaluation-service/notifications",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
+      console.log("API RESPONSE:", res.data);
+
+      const list =
+        res.data?.notifications ||
+        res.data?.data ||
+        res.data ||
+        [];
+
+      setNotifications(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.log(err);
+      setError(err.response?.data?.message || err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <Box sx={{ maxWidth: 720, mx: "auto", px: 2, py: 4 }}>
-      <Stack direction="row" alignItems="center" spacing={1.5} mb={3}>
-        <Badge badgeContent={unreadCount} color="primary" max={99}>
-          <NotificationsIcon sx={{ fontSize: 28 }} />
+    <Box sx={{ maxWidth: 700, mx: "auto", p: 3 }}>
+
+      <Stack direction="row" spacing={2} alignItems="center">
+        <Badge badgeContent={notifications.length} color="primary">
+          <NotificationsIcon />
         </Badge>
-        <Typography variant="h5" fontWeight={700}>
+
+        <Typography variant="h5">
           Notifications
         </Typography>
       </Stack>
 
-      <Divider sx={{ mb: 3 }} />
+      <Divider sx={{ my: 2 }} />
 
-      <Box sx={{ marginBottom: 3 }}>
-        <NotificationFilter value={filter} onChange={handleFilterChange} />
-      </Box>
+      {loading && <CircularProgress />}
 
-      {true && (
-        <Box display="flex" justifyContent="center" py={6}>
-          <CircularProgress />
-        </Box>
+      {error && <Alert severity="error">{error}</Alert>}
+
+      {!loading && !error && notifications.length === 0 && (
+        <Alert severity="info">No notifications found</Alert>
       )}
 
-      {!loading && error && (
-        <Alert severity="error">Failed to load notifications: {error}</Alert>
-      )}
+      <Stack spacing={1.5} mt={2}>
+        {notifications.map((n, i) => (
+          <Box
+            key={n.ID || i}
+            sx={{
+              p: 2,
+              border: "1px solid #ddd",
+              borderRadius: 2,
+            }}
+          >
+            <Typography fontWeight="bold">
+              {n.Type}
+            </Typography>
 
-      {loading && !error && notifications.length == "0" && (
-        <Alert severity="info">Something message</Alert>
-      )}
+            <Typography>
+              {n.Message}
+            </Typography>
 
-      {loading && !error && notifications.length > 0 && (
-        <Stack spacing={1.5}>
-          {notifications.map((n) => (
-            <></>
-          ))}
-        </Stack>
-      )}
-
-      {!loading && (
-        <Box display="flex" justifyContent="center" mt={4}>
-          <Pagination
-            count={totalPages}
-            page={page}
-            onChange={handlePageChange}
-            color="primary"
-            shape="rounded"
-          />
-        </Box>
-      )}
+            <Typography variant="caption">
+              {n.Timestamp}
+            </Typography>
+          </Box>
+        ))}
+      </Stack>
     </Box>
   );
 }
