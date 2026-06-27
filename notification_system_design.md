@@ -794,3 +794,135 @@ This combination minimizes database load, improves response time, supports milli
 | Database Indexing | High | Medium | Extra storage |
 | Incremental Fetch | Very High | Very Low | Client tracks latest timestamp |
 | Background Sync | High | Low | More application logic |
+# Stage 5
+
+## Problems with the Existing Implementation
+
+The current implementation processes each student one by one.
+
+```text
+for each student
+    send_email()
+    save_to_db()
+    push_to_app()
+```
+
+### Shortcomings
+
+- Sequential execution is slow for 50,000 students.
+- If email sending fails, later students may never be processed.
+- No retry mechanism for failed emails.
+- No fault tolerance.
+- Database and email operations are tightly coupled.
+- Poor scalability for large numbers of users.
+- No parallel processing.
+
+---
+
+## What if send_email() Fails for 200 Students?
+
+The failed students should **not** be ignored.
+
+Instead:
+
+- Record the failure in logs.
+- Store the failed requests in a retry queue.
+- Retry sending emails automatically after a delay.
+- After several failed attempts, move the request to a Dead Letter Queue (DLQ) for manual investigation.
+
+This ensures every student eventually receives the notification.
+
+---
+
+## Should Saving to DB and Sending Email Happen Together?
+
+**No.**
+
+The notification should first be saved to the database.
+
+Reasons:
+
+- Guarantees the notification is permanently stored.
+- Students can still view the notification in the application even if the email fails.
+- Email delivery can be retried independently.
+- Improves reliability and fault tolerance.
+
+---
+
+## Improved Design
+
+1. Save notification to the database.
+2. Publish notification to a message queue.
+3. Worker services process the queue.
+4. Send email asynchronously.
+5. Push in-app notification through WebSocket.
+6. Retry failed email requests automatically.
+
+---
+
+## Revised Pseudocode
+
+```text
+function notify_all(student_ids, message):
+
+    notification_id = save_notification(message)
+
+    for student_id in student_ids:
+
+        save_student_notification(student_id, notification_id)
+
+        enqueue_email(student_id, message)
+
+        enqueue_push_notification(student_id, message)
+
+
+worker_email():
+
+    while queue is not empty:
+
+        job = get_next_email_job()
+
+        try:
+            send_email(job.student_id, job.message)
+            mark_email_sent(job)
+
+        catch error:
+            retry(job)
+
+            if retry_limit_exceeded:
+                move_to_dead_letter_queue(job)
+
+
+worker_push():
+
+    while queue is not empty:
+
+        job = get_next_push_job()
+
+        push_to_app(job.student_id, job.message)
+```
+
+---
+
+## Advantages of the Improved Design
+
+- Faster processing through asynchronous execution.
+- Database is updated immediately.
+- Email failures do not affect in-app notifications.
+- Automatic retry for temporary failures.
+- Dead Letter Queue stores permanently failed requests.
+- Easily scalable by increasing worker instances.
+- Supports notifications for tens of thousands of students efficiently.
+
+---
+
+## Strategy Comparison
+
+| Existing Implementation | Improved Implementation |
+|-------------------------|-------------------------|
+| Sequential processing | Asynchronous processing |
+| Slow | Fast |
+| Stops on failures | Retry mechanism |
+| No fault tolerance | Fault tolerant |
+| Difficult to scale | Highly scalable |
+| Email and DB tightly coupled | Independent processing using queues |
