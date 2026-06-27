@@ -628,3 +628,169 @@ AND createdAt >= CURRENT_DATE - INTERVAL '7 days';
 - Avoid `SELECT *` whenever possible.
 - Creating indexes on every column is not recommended.
 - The optimized approach improves query performance from **O(N)** to approximately **O(log N + K)**.
+# Stage 4
+
+## Problem Statement
+
+Currently, every time a student opens or refreshes the application, all notifications are fetched from the database. With 50,000 students and millions of notifications, this creates excessive database load and increases response time.
+
+---
+
+## Proposed Solutions
+
+### 1. Caching (Recommended)
+
+Store recently accessed notifications in an in-memory cache such as Redis.
+
+**Advantages**
+
+- Faster response time
+- Reduces database load
+- Handles repeated requests efficiently
+
+**Trade-offs**
+
+- Additional memory usage
+- Cached data must be refreshed when notifications change
+
+---
+
+### 2. Pagination
+
+Instead of returning every notification, return a limited number of records.
+
+Example:
+
+```http
+GET /api/v1/notifications?page=1&limit=20
+```
+
+**Advantages**
+
+- Less data transferred
+- Faster loading
+- Lower database workload
+
+**Trade-offs**
+
+- Users need multiple requests to view older notifications
+
+---
+
+### 3. Real-Time Push Notifications
+
+Use WebSockets or Server-Sent Events (SSE) to send new notifications only when they are created.
+
+**Advantages**
+
+- Eliminates repeated polling
+- Instant notification delivery
+- Better user experience
+
+**Trade-offs**
+
+- More complex implementation
+- Requires persistent client connections
+
+---
+
+### 4. Read Replicas
+
+Use separate database replicas for read operations while the primary database handles write operations.
+
+**Advantages**
+
+- Reduces load on the primary database
+- Improves scalability
+- Supports many concurrent users
+
+**Trade-offs**
+
+- Additional infrastructure cost
+- Small replication delay may occur
+
+---
+
+### 5. Database Indexing
+
+Create indexes on frequently searched columns such as:
+
+- studentID
+- isRead
+- createdAt
+
+**Advantages**
+
+- Faster query execution
+- Reduced search time
+
+**Trade-offs**
+
+- Extra storage required
+- Slightly slower INSERT, UPDATE and DELETE operations
+
+---
+
+### 6. Fetch Only New Notifications
+
+Instead of fetching all notifications every time, request only notifications created after the latest notification already available on the client.
+
+Example:
+
+```http
+GET /api/v1/notifications?after=2026-06-27T10:30:00Z
+```
+
+**Advantages**
+
+- Very little data transferred
+- Faster response
+- Reduced database load
+
+**Trade-offs**
+
+- Client must store the timestamp of the latest notification
+
+---
+
+### 7. Background Synchronization
+
+Load cached notifications immediately and synchronize new notifications in the background.
+
+**Advantages**
+
+- Faster page loading
+- Better user experience
+
+**Trade-offs**
+
+- Slight increase in implementation complexity
+
+---
+
+## Recommended Solution
+
+The best approach is to combine multiple techniques:
+
+- Redis caching for frequently accessed notifications
+- Pagination for loading notifications in small batches
+- WebSockets for real-time updates
+- Composite database indexes
+- Read replicas for scaling read traffic
+- Incremental fetching of only new notifications
+
+This combination minimizes database load, improves response time, supports millions of notifications, and provides a smooth user experience.
+
+---
+
+## Strategy Comparison
+
+| Strategy | Performance | Database Load | Trade-off |
+|----------|-------------|---------------|-----------|
+| Redis Cache | Very High | Very Low | Cache invalidation |
+| Pagination | High | Low | Multiple requests |
+| WebSockets | Very High | Very Low | More complex implementation |
+| Read Replicas | High | Low | Additional infrastructure |
+| Database Indexing | High | Medium | Extra storage |
+| Incremental Fetch | Very High | Very Low | Client tracks latest timestamp |
+| Background Sync | High | Low | More application logic |
